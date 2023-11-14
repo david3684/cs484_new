@@ -43,17 +43,17 @@ descriptor_window_image_width = 16
 maxPtsEval = 100
 
 # Whether to use the 'cheat' hand-picked interest points
-cheatInterestPoints = False
+cheatInterestPoints = True
 
 def main():
     # Notre Dame de Paris
     # Easiest
     print('Notre Dame de Paris')
-    image1 = cv2.imread('/Users/treblocami/Desktop/job/cs484_project/hw4_2023f/data/NotreDame/921919841_a30df938f2_o.jpg')
-    image2 = cv2.imread('/Users/treblocami/Desktop/job/cs484_project/hw4_2023f/data/NotreDame/4191453057_c86028ce1f_o.jpg')
+    image1 = cv2.imread('./data/NotreDame/921919841_a30df938f2_o.jpg')
+    image2 = cv2.imread('./data/NotreDame/4191453057_c86028ce1f_o.jpg')
     image1 = cv2.normalize(image1.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
     image2 = cv2.normalize(image2.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    eval_file = '/Users/treblocami/Desktop/job/cs484_project/hw4_2023f/data/NotreDame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat'
+    eval_file = './data/NotreDame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat'
     reference_results = scipy.io.loadmat(eval_file)
 
     image1 = cv2.resize(cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY), dsize=(0, 0), fx=scale_factor, fy=scale_factor,
@@ -97,11 +97,11 @@ def main():
     # Mount Rushmore
     # A little harder than Notre Dame
     print('Mount Rushmore')
-    image1 = cv2.imread('../data/MountRushmore/9021235130_7c2acd9554_o.jpg')
-    image2 = cv2.imread('../data/MountRushmore/9318872612_a255c874fb_o.jpg')
+    image1 = cv2.imread('./data/MountRushmore/9021235130_7c2acd9554_o.jpg')
+    image2 = cv2.imread('./data/MountRushmore/9318872612_a255c874fb_o.jpg')
     image1 = cv2.normalize(image1.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
     image2 = cv2.normalize(image2.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    eval_file = '../data/MountRushmore/9021235130_7c2acd9554_o_to_9318872612_a255c874fb_o.mat'
+    eval_file = './data/MountRushmore/9021235130_7c2acd9554_o_to_9318872612_a255c874fb_o.mat'
     reference_results = scipy.io.loadmat(eval_file)
 
     image1 = cv2.resize(cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY), dsize=(0, 0), fx=scale_factor, fy=scale_factor,
@@ -145,11 +145,11 @@ def main():
     # Gaudi's Episcopal Palace
     # This pair is difficult
     print('Gaudi\'s Episcopal Palace')
-    image1 = cv2.imread('../data/EpiscopalGaudi/4386465943_8cf9776378_o.jpg')
-    image2 = cv2.imread('../data/EpiscopalGaudi/3743214471_1b5bbfda98_o.jpg')
+    image1 = cv2.imread('./data/EpiscopalGaudi/4386465943_8cf9776378_o.jpg')
+    image2 = cv2.imread('./data/EpiscopalGaudi/3743214471_1b5bbfda98_o.jpg')
     image1 = cv2.normalize(image1.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
     image2 = cv2.normalize(image2.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    eval_file = '../data/EpiscopalGaudi/4386465943_8cf9776378_o_to_3743214471_1b5bbfda98_o.mat'
+    eval_file = './data/EpiscopalGaudi/4386465943_8cf9776378_o_to_3743214471_1b5bbfda98_o.mat'
     reference_results = scipy.io.loadmat(eval_file)
 
     image1 = cv2.resize(cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY), dsize=(0, 0), fx=scale_factor, fy=scale_factor,

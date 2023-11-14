@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+import skimage
 
 def get_interest_points(image, descriptor_window_image_width):
     # Local Feature Stencil Code
@@ -34,29 +34,45 @@ def get_interest_points(image, descriptor_window_image_width):
     # - Notre Dame: ~1300 and ~1700
     # - Mount Rushmore: ~3500 and ~4500
     # - Episcopal Gaudi: ~1000 and ~9000
+    sigma=1
     img_gray = np.float32(image if len(image.shape) == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
-    Ix = cv2.Sobel(img_gray, cv2.CV_64F, 1, 0, ksize=5)
-    Iy = cv2.Sobel(img_gray, cv2.CV_64F, 0, 1, ksize=5)
-    Ixx = cv2.GaussianBlur(Ix * Ix, (5, 5), 0)
-    Iyy = cv2.GaussianBlur(Iy * Iy, (5, 5), 0)
-    Ixy = cv2.GaussianBlur(Ix * Iy, (5, 5), 0)
+    #blurred_image = cv2.GaussianBlur(img_gray, (0,0), sigma)
+    blurred_image = img_gray
+    Ix = cv2.Sobel(blurred_image, cv2.CV_64F, 1, 0, ksize=5)
+    Iy = cv2.Sobel(blurred_image, cv2.CV_64F, 0, 1, ksize=5)
+    Ixx = cv2.GaussianBlur(Ix * Ix, (0,0), sigma)
+    Iyy = cv2.GaussianBlur(Iy * Iy, (0,0), sigma)
+    Ixy = cv2.GaussianBlur(Ix * Iy, (0,0), sigma)
     
     # Compute the Harris response
-    detM = Ixx * Iyy - Ixy * Ixy
     traceM = Ixx + Iyy
-    alpha = 0.04
-    cornerness = detM - alpha * traceM * traceM
-    threshold = 0.01 * cornerness.max()
-    non_max_sup_img = np.zeros_like(cornerness)
-    non_max_sup_img[cornerness > threshold] = cornerness[cornerness > threshold]
-    
-    # Apply non-maximum suppression
-    corners = cv2.dilate(non_max_sup_img, None)
-    x, y = np.where(corners == non_max_sup_img)
-    edge_threshold = descriptor_window_image_width // 2
-    x, y = x[(x >= edge_threshold) & (x < image.shape[1] - edge_threshold)], y[(y >= edge_threshold) & (y < image.shape[0] - edge_threshold)]
+    alpha = 0.05
+    cornerness = Ixx*Iyy-Ixy*Ixy-alpha*traceM
 
-    return x, y
+    # Thresholding to get initial corners
+    threshold = 0.08  # You may need to adjust this threshold
+    corners_thresholded = cornerness > threshold*cornerness.max()
+    skimage.measure.label()
+    # Step 6: Non-maxima suppression to pick peaks
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    dilated = cv2.dilate(corners_thresholded.astype(np.float32), kernel)
+    max_corners = (dilated == corners_thresholded) & (corners_thresholded > 0)
+
+    # Apply edge threshold to suppress the gradients/corners near the edges of the image
+    border_size = descriptor_window_image_width // 2
+    height, width = image.shape
+    suppressed_corners = np.zeros_like(cornerness, dtype=np.float32)
+    suppressed_corners[border_size:height - border_size, border_size:width - border_size] = max_corners[border_size:height - border_size, border_size:width - border_size]
+
+    # Find final corner coordinates
+    final_corners_y, final_corners_x = np.nonzero(suppressed_corners)
+
+    # Print the number of corners
+    print(f"Number of corners detected: {len(final_corners_x)}")
+
+    return final_corners_x, final_corners_y
+
+
 
 def get_descriptors(image, x, y, descriptor_window_image_width):
     # Written by James Hays for CS 143 @ Brown / CS 4476/6476 @ Georgia Tech
@@ -80,53 +96,79 @@ def get_descriptors(image, x, y, descriptor_window_image_width):
 
     # Placeholder that you can delete. Empty features.
     # Convert to grayscale if the image is color
+    # Assuming keypoints are provided as a list of cv2.KeyPoint objects
+    # descriptor_window_image_width is the width of the SIFT descriptors. By default, it's set to 16 pixels.
+
     if len(image.shape) > 2:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Pre-compute gradients and orientations
-    # These could also be passed in as arguments if computed earlier
+
+    # Constants for descriptor
+    num_bins = 8
+    window_width = descriptor_window_image_width // 4  # width of the 4x4 cells in a window
+
+    # Preallocate the descriptors array
+    descriptors = np.zeros((len(x), 128))  # 128 = 16 histograms * 8 bins per histogram
+
+    # Compute gradients using Sobel operator
     dx = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
     dy = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)
-    magnitude = np.sqrt(dx**2 + dy**2)
+    magnitude = cv2.magnitude(dx, dy)
     orientation = np.arctan2(dy, dx) * (180 / np.pi) % 360
 
-    # Set up the SIFT-like feature descriptors array
-    descriptor_length = 128  # This is the standard SIFT descriptor length
-    features = np.zeros((len(x), descriptor_length))
+    # Pre-compute the Gaussian window
+    gaussian_window = cv2.getGaussianKernel(descriptor_window_image_width, descriptor_window_image_width / 2)
+    gaussian_window = gaussian_window * gaussian_window.T
 
-    # Define the number of bins for the histogram
-    bin_width = 360 // (descriptor_length // 16)  # Assuming a 4x4 grid
+    # Iterate over all keypoints
+    for idx in range(len(x)):
+        xi, yi = int(x[idx]), int(y[idx])
 
-    # Descriptor extraction
-    cell_width = descriptor_window_image_width // 4
-    border_width = descriptor_window_image_width // 2
-    
-    for i in range(len(x)):
-        # For each interest point, build a histogram of gradients
-        hist = np.zeros(descriptor_length)
-        for row in range(-border_width, border_width, cell_width):
-            for col in range(-border_width, border_width, cell_width):
-                sub_magnitude = magnitude[y[i]+row:y[i]+row+cell_width, x[i]+col:x[i]+col+cell_width]
-                sub_orientation = orientation[y[i]+row:y[i]+row+cell_width, x[i]+col:x[i]+col+cell_width]
-                
-                # Weighted contribution to histogram bins
-                for m, o in zip(sub_magnitude.flatten(), sub_orientation.flatten()):
-                    bin = int(o // bin_width)
-                    hist[bin] += m  # Could add weighting by distance from center of descriptor
-        
-        # Normalize the feature descriptor to ensure contrast invariance
-        hist /= (np.linalg.norm(hist) + 1e-10)  # Adding a small value to avoid division by zero
-        
-        # Clip the values to [0, 0.2] to reduce effects of lighting changes
-        hist = np.clip(hist, 0, 0.2)
-        
-        # Renormalize again
-        hist /= (np.linalg.norm(hist) + 1e-10)
+        # Ensure the window is fully within the image bounds
+        min_x = max(xi - window_width * 2, 0)
+        max_x = min(xi + window_width * 2, image.shape[1])
+        min_y = max(yi - window_width * 2, 0)
+        max_y = min(yi + window_width * 2, image.shape[0])
 
-        # Assign the histogram to the feature descriptor array
-        features[i, :] = hist.flatten()
+        # Calculate the region of the image to be considered for this keypoint
+        window_magnitude = magnitude[min_y:max_y, min_x:max_x]
+        window_orientation = orientation[min_y:max_y, min_x:max_x]
 
-    return features
+        # Apply the Gaussian window
+        weight_window_magnitude = window_magnitude * gaussian_window[min_y - yi + window_width * 2:max_y - yi + window_width * 2,
+                                                                    min_x - xi + window_width * 2:max_x - xi + window_width * 2]
+
+        # Descriptor array, to be filled with values
+        descriptor_vector = np.zeros((4, 4, num_bins))
+
+        # Populate the descriptor vector with values
+        for i in range(4):
+            for j in range(4):
+                # Subregion of window, considering the boundaries
+                i_min = max(0, window_width * i - (yi - window_width * 2))
+                j_min = max(0, window_width * j - (xi - window_width * 2))
+                i_max = min(window_width * (i + 1), window_magnitude.shape[0])
+                j_max = min(window_width * (j + 1), window_magnitude.shape[1])
+
+                # Subregion of weighted magnitudes and orientations
+                subregion_w_mag = weight_window_magnitude[i_min:i_max, j_min:j_max].flatten()
+                subregion_orientation = window_orientation[i_min:i_max, j_min:j_max].flatten()
+
+                # Create histogram for this subregion
+                hist, _ = np.histogram(subregion_orientation, bins=num_bins, range=(0, 360), weights=subregion_w_mag)
+                descriptor_vector[i, j, :] = hist
+
+        # Normalize the descriptor to be scale invariant
+        descriptor_vector = descriptor_vector.flatten()
+        descriptor_vector /= (np.linalg.norm(descriptor_vector) + 1e-7)
+
+        # Clip values to 0.2 and re-normalize
+        descriptor_vector = np.clip(descriptor_vector, 0, 0.2)
+        descriptor_vector /= (np.linalg.norm(descriptor_vector) + 1e-7)
+
+        # Assign the flattened descriptor to the descriptors array
+        descriptors[idx, :] = descriptor_vector
+
+    return descriptors
 
 def match_features(features1, features2):
     # Written by James Hays for CS 143 @ Brown / CS 4476/6476 @ Georgia Tech
@@ -152,10 +194,34 @@ def match_features(features1, features2):
     # 'confidences' is a k x 1 matrix with a real valued confidence for every match.
 
     # Placeholder random matches and confidences.
-    num_features = min(features1.shape[0], features2.shape[0])
-    matches = np.zeros((num_features, 2))
-    matches[:,0] = np.random.permutation(num_features)
-    matches[:,1] = np.random.permutation(num_features)
-    confidences = np.random.rand(num_features)
-    return matches, confidences
+    matches = []
+    confidences = []
+    ratio = 0.8
+    # Iterate over all features in features1
+    for i, feature in enumerate(features1):
+        # Calculate the Euclidean distance from this feature to all features in features2
+        distances = np.linalg.norm(features2 - feature, axis=1)
 
+        # Sort the distances to get the closest and second closest match
+        sorted_distance_indices = np.argsort(distances)
+        closest_neighbor_index = sorted_distance_indices[0]
+        second_closest_neighbor_index = sorted_distance_indices[1]
+
+        # Compute the nearest neighbor distance ratio
+        nn_distance_ratio = distances[closest_neighbor_index] / distances[second_closest_neighbor_index]
+
+        # If the ratio is below the threshold, it's a good match
+        if nn_distance_ratio < ratio:
+            #print(nn_distance_ratio)
+            matches.append([i, closest_neighbor_index])
+            confidences.append((1.0 - nn_distance_ratio) * distances[second_closest_neighbor_index])
+
+    # Convert matches and confidences to numpy arrays
+    matches = np.array(matches)
+    confidences = np.array(confidences)
+    # Sort the matches by confidence in descending order
+    sorted_indices = np.argsort(-confidences)
+    matches = matches[sorted_indices]
+    confidences = confidences[sorted_indices]
+
+    return matches, confidences
