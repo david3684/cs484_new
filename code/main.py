@@ -43,7 +43,7 @@ descriptor_window_image_width = 16
 maxPtsEval = 100
 
 # Whether to use the 'cheat' hand-picked interest points
-cheatInterestPoints = True
+cheatInterestPoints = False
 
 def main():
     # Notre Dame de Paris
