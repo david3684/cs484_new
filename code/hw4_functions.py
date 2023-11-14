@@ -167,6 +167,7 @@ def get_descriptors(image, x, y, descriptor_window_image_width):
 
         # Normalize the descriptor to be scale invariant
         descriptor_vector = descriptor_vector.flatten()
+        #something for git
         descriptor_vector /= (np.linalg.norm(descriptor_vector) + 1e-7)
 
         # Clip values to 0.2 and re-normalize
