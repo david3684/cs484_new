@@ -49,11 +49,11 @@ def main():
     # Notre Dame de Paris
     # Easiest
     print('Notre Dame de Paris')
-    image1 = cv2.imread('./data/NotreDame/921919841_a30df938f2_o.jpg')
-    image2 = cv2.imread('./data/NotreDame/4191453057_c86028ce1f_o.jpg')
+    image1 = cv2.imread('../data/NotreDame/921919841_a30df938f2_o.jpg')
+    image2 = cv2.imread('../data/NotreDame/4191453057_c86028ce1f_o.jpg')
     image1 = cv2.normalize(image1.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
     image2 = cv2.normalize(image2.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    eval_file = './data/NotreDame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat'
+    eval_file = '../data/NotreDame/921919841_a30df938f2_o_to_4191453057_c86028ce1f_o.mat'
     reference_results = scipy.io.loadmat(eval_file)
 
     image1 = cv2.resize(cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY), dsize=(0, 0), fx=scale_factor, fy=scale_factor,
